@@ -41,5 +41,6 @@ jobs:
 
       - name: Run Maven tests
         env:
+          DB_URL: jdbc:postgresql://localhost:5432/game_leaderboard
           DB_PASSWORD: ci_test_password
         run: ./mvnw test
