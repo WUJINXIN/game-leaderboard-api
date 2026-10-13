@@ -1,0 +1,108 @@
+package com.example.gameleaderboard;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Autowired;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@Transactional
+class PlayersControllerIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private PlayerRepository repository;
+
+    @Test
+    void createPlayer_returns201() throws Exception {
+        String json = """
+                {
+                    "id": 2001,
+                    "name": "ApiTestPlayer",
+                    "score": 2500
+                }
+                """;
+
+        mockMvc.perform(post("/api/players")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(2001))
+                .andExpect(jsonPath("$.name").value("ApiTestPlayer"))
+                .andExpect(jsonPath("$.score").value(2500));
+
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    @Test
+    void getPlayerById_returns200() throws Exception {
+        // 1. Prepare test data
+        PlayerEntity player = new PlayerEntity(
+                2002, "GetTestPlayer", 3000);
+
+        repository.saveAndFlush(player);
+
+        // 2. Clear JPA cache
+        entityManager.clear();
+
+        // 3. Send GET request
+        mockMvc.perform(get("/api/players/2002"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(2002))
+                .andExpect(jsonPath("$.name").value("GetTestPlayer"))
+                .andExpect(jsonPath("$.score").value(3000));
+    }
+
+    @Test
+    void getPlayerById_returns404() throws Exception {
+        // Make sure the player does not exist
+        repository.deleteById(9999);
+        repository.flush();
+        entityManager.clear();
+
+        // Send GET request
+        mockMvc.perform(get("/api/players/9999"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void createPlayer_returns409_whenIdExists() throws Exception {
+        // 1. Prepare an existing player
+        PlayerEntity player = new PlayerEntity(
+                2003, "ExistingPlayer", 3500);
+
+        repository.saveAndFlush(player);
+        entityManager.clear();
+
+        // 2. Attempt to create another player with the same ID
+        String json = """
+                {
+                    "id": 2003,
+                    "name": "DuplicatePlayer",
+                    "score": 4000
+                }
+                """;
+
+        mockMvc.perform(post("/api/players")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+                .andExpect(status().isConflict());
+    }
+}
