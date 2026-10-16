@@ -29,4 +29,9 @@ public class PlayersController {
     public Player addPlayer(@RequestBody Player player) {
         return playerService.addPlayer(player);
     }
+
+    @GetMapping("/api/leaderboard")
+    public List<Player> getLeaderboard() {
+        return playerService.getLeaderboard();
+    }
 }

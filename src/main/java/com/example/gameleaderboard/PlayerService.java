@@ -19,18 +19,25 @@ public class PlayerService {
     @Transactional(readOnly = true)
     public List<Player> getPlayers() {
         return playerRepository.findAll()
-            .stream()
-            .map(this::toPlayer)
-            .toList();
+                .stream()
+                .map(this::toPlayer)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Player> getLeaderboard() {
+        return playerRepository.findAllByOrderByScoreDescIdAsc()
+                .stream()
+                .map(this::toPlayer)
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public Player getPlayerById(int id) {
         PlayerEntity entity = playerRepository.findById(id)
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Player not found"
-            ));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Player not found"));
 
         return toPlayer(entity);
     }
@@ -40,16 +47,14 @@ public class PlayerService {
 
         if (playerRepository.existsById(player.id())) {
             throw new ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Player ID already exists"
-            );
+                    HttpStatus.CONFLICT,
+                    "Player ID already exists");
         }
 
         PlayerEntity entity = new PlayerEntity(
-            player.id(),
-            player.name(),
-            player.score()
-        );
+                player.id(),
+                player.name(),
+                player.score());
 
         PlayerEntity saved = playerRepository.save(entity);
 
@@ -58,9 +63,8 @@ public class PlayerService {
 
     private Player toPlayer(PlayerEntity entity) {
         return new Player(
-            entity.getId(),
-            entity.getName(),
-            entity.getScore()
-        );
+                entity.getId(),
+                entity.getName(),
+                entity.getScore());
     }
 }
