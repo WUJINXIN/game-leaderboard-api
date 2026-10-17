@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 public class PlayerService {
@@ -30,6 +31,24 @@ public class PlayerService {
                 .stream()
                 .map(this::toPlayer)
                 .toList();
+    }
+    
+    @Transactional(readOnly = true)
+    public List<Player> getLeaderboard(int limit) {
+
+        if (limit < 1 || limit > 100) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "limit must be between 1 and 100"
+            );
+        }
+
+        return playerRepository.findAllByOrderByScoreDescIdAsc(
+                PageRequest.of(0, limit)
+            )
+            .stream()
+            .map(this::toPlayer)
+            .toList();
     }
 
     @Transactional(readOnly = true)

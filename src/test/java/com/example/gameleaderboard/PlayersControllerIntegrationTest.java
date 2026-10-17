@@ -20,113 +20,125 @@ import org.springframework.beans.factory.annotation.Autowired;
 @Transactional
 class PlayersControllerIntegrationTest {
 
-        @Autowired
-        private MockMvc mockMvc;
+	@Autowired
+	private MockMvc mockMvc;
 
-        @Autowired
-        private EntityManager entityManager;
+	@Autowired
+	private EntityManager entityManager;
 
-        @Autowired
-        private PlayerRepository repository;
+	@Autowired
+	private PlayerRepository repository;
 
-        @Test
-        void createPlayer_returns201() throws Exception {
-                String json = """
-                                {
-                                    "id": 2001,
-                                    "name": "ApiTestPlayer",
-                                    "score": 2500
-                                }
-                                """;
+	@Test
+	void createPlayer_returns201() throws Exception {
+		String json = """
+				{
+				    "id": 2001,
+				    "name": "ApiTestPlayer",
+				    "score": 2500
+				}
+				""";
 
-                mockMvc.perform(post("/api/players")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(json))
-                                .andExpect(status().isCreated())
-                                .andExpect(jsonPath("$.id").value(2001))
-                                .andExpect(jsonPath("$.name").value("ApiTestPlayer"))
-                                .andExpect(jsonPath("$.score").value(2500));
+		mockMvc.perform(post("/api/players").contentType(MediaType.APPLICATION_JSON).content(json))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(2001))
+				.andExpect(jsonPath("$.name").value("ApiTestPlayer")).andExpect(jsonPath("$.score").value(2500));
 
-                entityManager.flush();
-                entityManager.clear();
-        }
+		entityManager.flush();
+		entityManager.clear();
+	}
 
-        @Test
-        void getPlayerById_returns200() throws Exception {
-                // 1. Prepare test data
-                PlayerEntity player = new PlayerEntity(
-                                2002, "GetTestPlayer", 3000);
+	@Test
+	void getPlayerById_returns200() throws Exception {
+		// 1. Prepare test data
+		PlayerEntity player = new PlayerEntity(2002, "GetTestPlayer", 3000);
 
-                repository.saveAndFlush(player);
+		repository.saveAndFlush(player);
 
-                // 2. Clear JPA cache
-                entityManager.clear();
+		// 2. Clear JPA cache
+		entityManager.clear();
 
-                // 3. Send GET request
-                mockMvc.perform(get("/api/players/2002"))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.id").value(2002))
-                                .andExpect(jsonPath("$.name").value("GetTestPlayer"))
-                                .andExpect(jsonPath("$.score").value(3000));
-        }
+		// 3. Send GET request
+		mockMvc.perform(get("/api/players/2002")).andExpect(status().isOk()).andExpect(jsonPath("$.id").value(2002))
+				.andExpect(jsonPath("$.name").value("GetTestPlayer")).andExpect(jsonPath("$.score").value(3000));
+	}
 
-        @Test
-        void getPlayerById_returns404() throws Exception {
-                // Make sure the player does not exist
-                repository.deleteById(9999);
-                repository.flush();
-                entityManager.clear();
+	@Test
+	void getPlayerById_returns404() throws Exception {
+		// Make sure the player does not exist
+		repository.deleteById(9999);
+		repository.flush();
+		entityManager.clear();
 
-                // Send GET request
-                mockMvc.perform(get("/api/players/9999"))
-                                .andExpect(status().isNotFound());
-        }
+		// Send GET request
+		mockMvc.perform(get("/api/players/9999")).andExpect(status().isNotFound());
+	}
 
-        @Test
-        void createPlayer_returns409_whenIdExists() throws Exception {
-                // 1. Prepare an existing player
-                PlayerEntity player = new PlayerEntity(
-                                2003, "ExistingPlayer", 3500);
+	@Test
+	void createPlayer_returns409_whenIdExists() throws Exception {
+		// 1. Prepare an existing player
+		PlayerEntity player = new PlayerEntity(2003, "ExistingPlayer", 3500);
 
-                repository.saveAndFlush(player);
-                entityManager.clear();
+		repository.saveAndFlush(player);
+		entityManager.clear();
 
-                // 2. Attempt to create another player with the same ID
-                String json = """
-                                {
-                                    "id": 2003,
-                                    "name": "DuplicatePlayer",
-                                    "score": 4000
-                                }
-                                """;
+		// 2. Attempt to create another player with the same ID
+		String json = """
+				{
+				    "id": 2003,
+				    "name": "DuplicatePlayer",
+				    "score": 4000
+				}
+				""";
 
-                mockMvc.perform(post("/api/players")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(json))
-                                .andExpect(status().isConflict());
-        }
+		mockMvc.perform(post("/api/players").contentType(MediaType.APPLICATION_JSON).content(json))
+				.andExpect(status().isConflict());
+	}
 
-        @Test
-        void getLeaderboard_returnsPlayersInRankOrder() throws Exception {
-                // 1. Prepare test players
-                repository.saveAndFlush(
-                                new PlayerEntity(4001, "Alice", 2000));
-                repository.saveAndFlush(
-                                new PlayerEntity(4002, "Bob", 3000));
-                repository.saveAndFlush(
-                                new PlayerEntity(4003, "Charlie", 2000));
+	@Test
+	void getLeaderboard_returnsPlayersInRankOrder() throws Exception {
+		// 1. Prepare test players
+		repository.saveAndFlush(new PlayerEntity(4001, "Alice", 2000));
+		repository.saveAndFlush(new PlayerEntity(4002, "Bob", 3000));
+		repository.saveAndFlush(new PlayerEntity(4003, "Charlie", 2000));
 
-                // 2. Clear JPA first-level cache
-                entityManager.clear();
+		// 2. Clear JPA first-level cache
+		entityManager.clear();
 
-                // 3. Request leaderboard
-                mockMvc.perform(get("/api/leaderboard"))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$[0].id").value(4002))
-                                .andExpect(jsonPath("$[0].name").value("Bob"))
-                                .andExpect(jsonPath("$[1].id").value(4001))
-                                .andExpect(jsonPath("$[1].name").value("Alice"))
-                                .andExpect(jsonPath("$[2].id").value(4003))
-                                .andExpect(jsonPath("$[2].name").value("Charlie"));
-        }
+		// 3. Request leaderboard
+		mockMvc.perform(get("/api/leaderboard")).andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(4002))
+				.andExpect(jsonPath("$[0].name").value("Bob")).andExpect(jsonPath("$[1].id").value(4001))
+				.andExpect(jsonPath("$[1].name").value("Alice")).andExpect(jsonPath("$[2].id").value(4003))
+				.andExpect(jsonPath("$[2].name").value("Charlie"));
+	}
+
+	@Test
+	void getLeaderboardWithLimit_returnsTop2() throws Exception {
+		repository.saveAndFlush(new PlayerEntity(5001, "Alice", 1000));
+		repository.saveAndFlush(new PlayerEntity(5002, "Bob", 3000));
+		repository.saveAndFlush(new PlayerEntity(5003, "Charlie", 2000));
+
+		entityManager.clear();
+
+		mockMvc.perform(get("/api/leaderboard").param("limit", "2")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.length()").value(2)).andExpect(jsonPath("$[0].id").value(5002))
+				.andExpect(jsonPath("$[1].id").value(5003));
+	}
+
+	@Test
+	void getLeaderboardWithLimit_returns400_whenLimitIsZero() throws Exception {
+
+		mockMvc.perform(get("/api/leaderboard").param("limit", "0")).andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void getLeaderboardWithLimit_returns400_whenLimitIsTooLarge() throws Exception {
+
+		mockMvc.perform(get("/api/leaderboard").param("limit", "101")).andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void getLeaderboardWithLimit_returns400_whenLimitIsNotNumber() throws Exception {
+
+		mockMvc.perform(get("/api/leaderboard").param("limit", "abc")).andExpect(status().isBadRequest());
+	}
 }
