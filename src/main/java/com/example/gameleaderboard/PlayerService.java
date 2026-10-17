@@ -11,79 +11,77 @@ import org.springframework.data.domain.PageRequest;
 @Service
 public class PlayerService {
 
-    private final PlayerRepository playerRepository;
+	private final PlayerRepository playerRepository;
 
-    public PlayerService(PlayerRepository playerRepository) {
-        this.playerRepository = playerRepository;
-    }
+	public PlayerService(PlayerRepository playerRepository) {
+		this.playerRepository = playerRepository;
+	}
 
-    @Transactional(readOnly = true)
-    public List<Player> getPlayers() {
-        return playerRepository.findAll()
-                .stream()
-                .map(this::toPlayer)
-                .toList();
-    }
+	@Transactional(readOnly = true)
+	public List<Player> getPlayers() {
+		return playerRepository.findAll().stream().map(this::toPlayer).toList();
+	}
 
-    @Transactional(readOnly = true)
-    public List<Player> getLeaderboard() {
-        return playerRepository.findAllByOrderByScoreDescIdAsc()
-                .stream()
-                .map(this::toPlayer)
-                .toList();
-    }
-    
-    @Transactional(readOnly = true)
-    public List<Player> getLeaderboard(int limit) {
+	@Transactional(readOnly = true)
+	public List<Player> getLeaderboard() {
+		return playerRepository.findAllByOrderByScoreDescIdAsc().stream().map(this::toPlayer).toList();
+	}
 
-        if (limit < 1 || limit > 100) {
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "limit must be between 1 and 100"
-            );
-        }
+	@Transactional(readOnly = true)
+	public List<Player> getLeaderboard(int limit) {
 
-        return playerRepository.findAllByOrderByScoreDescIdAsc(
-                PageRequest.of(0, limit)
-            )
-            .stream()
-            .map(this::toPlayer)
-            .toList();
-    }
+		if (limit < 1 || limit > 100) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "limit must be between 1 and 100");
+		}
 
-    @Transactional(readOnly = true)
-    public Player getPlayerById(int id) {
-        PlayerEntity entity = playerRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Player not found"));
+		return playerRepository.findAllByOrderByScoreDescIdAsc(PageRequest.of(0, limit)).stream().map(this::toPlayer)
+				.toList();
+	}
 
-        return toPlayer(entity);
-    }
+	@Transactional(readOnly = true)
+	public Player getPlayerById(int id) {
+		PlayerEntity entity = playerRepository.findById(id)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found"));
 
-    @Transactional
-    public Player addPlayer(Player player) {
+		return toPlayer(entity);
+	}
 
-        if (playerRepository.existsById(player.id())) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Player ID already exists");
-        }
+	@Transactional
+	public Player addPlayer(Player player) {
 
-        PlayerEntity entity = new PlayerEntity(
-                player.id(),
-                player.name(),
-                player.score());
+		if (playerRepository.existsById(player.id())) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Player ID already exists");
+		}
 
-        PlayerEntity saved = playerRepository.save(entity);
+		PlayerEntity entity = new PlayerEntity(player.id(), player.name(), player.score());
 
-        return toPlayer(saved);
-    }
+		PlayerEntity saved = playerRepository.save(entity);
 
-    private Player toPlayer(PlayerEntity entity) {
-        return new Player(
-                entity.getId(),
-                entity.getName(),
-                entity.getScore());
-    }
+		return toPlayer(saved);
+	}
+	
+	@Transactional
+	public Player updatePlayerScore(int id, int newScore) {
+
+	    PlayerEntity entity = playerRepository.findById(id)
+	        .orElseThrow(() -> new ResponseStatusException(
+	            HttpStatus.NOT_FOUND,
+	            "Player not found"
+	        ));
+
+	    if (newScore < 0) {
+	        throw new ResponseStatusException(
+	            HttpStatus.BAD_REQUEST,
+	            "Score must not be negative"
+	        );
+	    }
+
+	    entity.setScore(newScore);
+
+	    return toPlayer(entity);
+	}
+
+	private Player toPlayer(PlayerEntity entity) {
+		return new Player(entity.getId(), entity.getName(), entity.getScore());
+	}
 }

@@ -4,6 +4,10 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+record UpdateScoreRequest(Integer score) {
+}
 
 @RestController
 public class PlayersController {
@@ -38,5 +42,15 @@ public class PlayersController {
 	@GetMapping(value = "/api/leaderboard", params = "limit")
 	public List<Player> getLeaderboardWithLimit(@RequestParam int limit) {
 		return playerService.getLeaderboard(limit);
+	}
+
+	@PatchMapping("/api/players/{id}/score")
+	public Player updatePlayerScore(@PathVariable int id, @RequestBody UpdateScoreRequest request) {
+
+		if (request.score() == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Score is required");
+		}
+
+		return playerService.updatePlayerScore(id, request.score());
 	}
 }

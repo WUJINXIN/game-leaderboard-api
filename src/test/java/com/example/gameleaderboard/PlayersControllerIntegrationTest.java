@@ -3,7 +3,9 @@ package com.example.gameleaderboard;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -141,4 +143,88 @@ class PlayersControllerIntegrationTest {
 
 		mockMvc.perform(get("/api/leaderboard").param("limit", "abc")).andExpect(status().isBadRequest());
 	}
+
+	@Test
+	void updatePlayerScore_returns200() throws Exception {
+
+		// 1. Prepare existing player
+		repository.saveAndFlush(new PlayerEntity(6001, "UpdateTestPlayer", 1800));
+
+		entityManager.clear();
+
+		// 2. Send PATCH request
+		String json = """
+				{
+				    "score": 2500
+				}
+				""";
+
+		mockMvc.perform(patch("/api/players/6001/score").contentType(MediaType.APPLICATION_JSON).content(json))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.id").value(6001))
+				.andExpect(jsonPath("$.name").value("UpdateTestPlayer")).andExpect(jsonPath("$.score").value(2500));
+
+		// 3. Force Hibernate to execute UPDATE
+		entityManager.flush();
+		entityManager.clear();
+
+		// 4. Verify updated score from PostgreSQL
+		PlayerEntity updated = repository.findById(6001).orElseThrow();
+
+		assertEquals(2500, updated.getScore());
+	}
+
+	@Test
+	void updatePlayerScore_negativeScore_returns400() throws Exception {
+
+		repository.saveAndFlush(new PlayerEntity(6002, "NegativeScorePlayer", 1800));
+
+		mockMvc.perform(patch("/api/players/6002/score").contentType(MediaType.APPLICATION_JSON).content("""
+				{
+				    "score": -100
+				}
+				""")).andExpect(status().isBadRequest());
+
+		entityManager.flush();
+		entityManager.clear();
+
+		PlayerEntity player = repository.findById(6002).orElseThrow();
+
+		assertEquals(1800, player.getScore());
+	}
+
+	@Test
+	void updatePlayerScore_playerNotFound_returns404() throws Exception {
+
+		int missingId = 999999;
+
+		// Make sure the test player does not exist
+		repository.deleteById(missingId);
+		repository.flush();
+
+		// Send PATCH to a nonexistent player
+		mockMvc.perform(patch("/api/players/{id}/score", missingId).contentType(MediaType.APPLICATION_JSON).content("""
+				{
+				    "score": 2500
+				}
+				""")).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void updatePlayerScore_missingScore_returns400() throws Exception {
+
+		repository.saveAndFlush(new PlayerEntity(6003, "MissingScorePlayer", 1800));
+
+		// JSON contains no score field
+		mockMvc.perform(patch("/api/players/6003/score").contentType(MediaType.APPLICATION_JSON).content("{}"))
+				.andExpect(status().isBadRequest());
+
+		// Verify original score is unchanged
+		entityManager.flush();
+		entityManager.clear();
+
+		PlayerEntity player = repository.findById(6003).orElseThrow();
+
+		assertEquals(1800, player.getScore());
+	}
+
 }
