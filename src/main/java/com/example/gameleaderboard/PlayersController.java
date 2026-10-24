@@ -2,6 +2,7 @@ package com.example.gameleaderboard;
 
 import java.util.List;
 
+import org.apache.logging.log4j.internal.annotation.SuppressFBWarnings;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -13,6 +14,11 @@ record UpdateScoreRequest(Integer score) {
 public class PlayersController {
 
 	private final PlayerService playerService;
+
+    @SuppressFBWarnings(
+        value = "EI_EXPOSE_REP2",
+        justification = "PlayerService is a Spring-managed dependency injected by the container."
+    )
 
 	public PlayersController(PlayerService playerService) {
 		this.playerService = playerService;

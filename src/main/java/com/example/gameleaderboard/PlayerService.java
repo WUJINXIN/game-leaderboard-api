@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.data.domain.PageRequest;
 
@@ -12,9 +14,12 @@ import org.springframework.data.domain.PageRequest;
 public class PlayerService {
 
 	private final PlayerRepository playerRepository;
+	private final RedisLeaderboardCache leaderboardCache;
 
-	public PlayerService(PlayerRepository playerRepository) {
+	public PlayerService(PlayerRepository playerRepository, RedisLeaderboardCache leaderboardCache) {
+
 		this.playerRepository = playerRepository;
+		this.leaderboardCache = leaderboardCache;
 	}
 
 	@Transactional(readOnly = true)
@@ -24,7 +29,29 @@ public class PlayerService {
 
 	@Transactional(readOnly = true)
 	public List<Player> getLeaderboard() {
-		return playerRepository.findAllByOrderByScoreDescIdAsc().stream().map(this::toPlayer).toList();
+
+		// 1. Try Redis cache
+		try {
+			if (leaderboardCache.isReady()) {
+				return leaderboardCache.getLeaderboard();
+			}
+		} catch (Exception e) {
+			// Redis unavailable or cached data invalid
+			System.err.println("Redis cache read failed: " + e.getMessage());
+		}
+
+		// 2. Cache Miss: query PostgreSQL
+		List<Player> players = playerRepository.findAllByOrderByScoreDescIdAsc().stream().map(this::toPlayer).toList();
+
+		// 3. Rebuild Redis cache
+		try {
+			leaderboardCache.rebuild(players);
+		} catch (Exception e) {
+			// Redis failure must not break the leaderboard API
+			System.err.println("Redis cache rebuild failed: " + e.getMessage());
+		}
+
+		return players;
 	}
 
 	@Transactional(readOnly = true)
@@ -53,32 +80,45 @@ public class PlayerService {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Player ID already exists");
 		}
 
-		PlayerEntity entity = new PlayerEntity(player.id(), player.name(), player.score());
+		PlayerEntity saved = playerRepository.save(new PlayerEntity(player.id(), player.name(), player.score()));
 
-		PlayerEntity saved = playerRepository.save(entity);
+		// Invalidate Redis only after PostgreSQL commit
+		invalidateLeaderboardAfterCommit();
 
 		return toPlayer(saved);
 	}
-	
+
 	@Transactional
 	public Player updatePlayerScore(int id, int newScore) {
 
-	    PlayerEntity entity = playerRepository.findById(id)
-	        .orElseThrow(() -> new ResponseStatusException(
-	            HttpStatus.NOT_FOUND,
-	            "Player not found"
-	        ));
+		PlayerEntity entity = playerRepository.findById(id)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Player not found"));
 
-	    if (newScore < 0) {
-	        throw new ResponseStatusException(
-	            HttpStatus.BAD_REQUEST,
-	            "Score must not be negative"
-	        );
-	    }
+		if (newScore < 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Score must not be negative");
+		}
 
-	    entity.setScore(newScore);
+		entity.setScore(newScore);
 
-	    return toPlayer(entity);
+		// Invalidate Redis only after PostgreSQL commit
+		invalidateLeaderboardAfterCommit();
+
+		return toPlayer(entity);
+	}
+
+	private void invalidateLeaderboardAfterCommit() {
+
+		if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+			throw new IllegalStateException("No active transaction synchronization");
+		}
+
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+			@Override
+			public void afterCommit() {
+				leaderboardCache.invalidate();
+			}
+		});
 	}
 
 	private Player toPlayer(PlayerEntity entity) {
