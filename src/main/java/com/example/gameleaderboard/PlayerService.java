@@ -8,6 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import org.springframework.data.domain.PageRequest;
 
 @Service
@@ -16,6 +19,7 @@ public class PlayerService {
 	private final PlayerRepository playerRepository;
 	private final RedisLeaderboardCache leaderboardCache;
 
+	@SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "Spring-managed dependency injected through constructor")
 	public PlayerService(PlayerRepository playerRepository, RedisLeaderboardCache leaderboardCache) {
 
 		this.playerRepository = playerRepository;

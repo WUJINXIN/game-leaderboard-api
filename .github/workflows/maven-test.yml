@@ -61,3 +61,6 @@ jobs:
           SPRING_DATA_REDIS_HOST: localhost
           SPRING_DATA_REDIS_PORT: "6379"
         run: ./mvnw test
+
+      - name: Run SpotBugs static analysis
+        run: ./mvnw spotbugs:check

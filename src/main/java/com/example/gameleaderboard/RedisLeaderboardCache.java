@@ -3,6 +3,7 @@ package com.example.gameleaderboard;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.data.redis.core.RedisOperations;
@@ -10,6 +11,8 @@ import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Component;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 @Component
 public class RedisLeaderboardCache {
@@ -24,6 +27,7 @@ public class RedisLeaderboardCache {
 
 	private final StringRedisTemplate redisTemplate;
 
+	@SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "StringRedisTemplate is a Spring-managed dependency")
 	public RedisLeaderboardCache(StringRedisTemplate redisTemplate) {
 		this.redisTemplate = redisTemplate;
 	}
@@ -48,11 +52,13 @@ public class RedisLeaderboardCache {
 
 		return entries.stream().map(entry -> {
 
-			String member = entry.getValue();
+			String member = Objects.requireNonNull(entry.getValue(), "Redis leaderboard member must not be null");
+
+			Double cachedScore = Objects.requireNonNull(entry.getScore(), "Redis leaderboard score must not be null");
 
 			int id = Integer.parseInt(member.substring("player:".length()));
 
-			int score = entry.getScore().intValue();
+			int score = cachedScore.intValue();
 
 			Object name = redisTemplate.opsForHash().get(NAMES_KEY, member);
 
