@@ -1,5 +1,7 @@
 # Game Leaderboard API
 
+**Language:** English | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
+
 [![Java CI](https://github.com/WUJINXIN/game-leaderboard-api/actions/workflows/maven-test.yml/badge.svg)](https://github.com/WUJINXIN/game-leaderboard-api/actions/workflows/maven-test.yml)
 
 A REST API for managing players and retrieving game leaderboards, built with **Java 21**, **Spring Boot 4.1.1**, **PostgreSQL**, and **Redis**.
