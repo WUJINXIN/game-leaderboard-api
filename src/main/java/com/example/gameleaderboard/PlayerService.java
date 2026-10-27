@@ -11,6 +11,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 
 @Service
@@ -18,6 +20,7 @@ public class PlayerService {
 
 	private final PlayerRepository playerRepository;
 	private final RedisLeaderboardCache leaderboardCache;
+	private static final Logger log = LoggerFactory.getLogger(PlayerService.class);
 
 	@SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "Spring-managed dependency injected through constructor")
 	public PlayerService(PlayerRepository playerRepository, RedisLeaderboardCache leaderboardCache) {
@@ -120,7 +123,12 @@ public class PlayerService {
 
 			@Override
 			public void afterCommit() {
-				leaderboardCache.invalidate();
+				try {
+					leaderboardCache.invalidate();
+					log.debug("Redis leaderboard cache invalidated after commit");
+				} catch (Exception e) {
+					log.warn("Failed to invalidate Redis leaderboard cache after database commit", e);
+				}
 			}
 		});
 	}
