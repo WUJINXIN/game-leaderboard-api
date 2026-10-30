@@ -1,18 +1,39 @@
 package com.example.gameleaderboard;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import org.springframework.web.server.ResponseStatusException;
 
 class PlayerServiceTest {
 
@@ -206,4 +227,109 @@ class PlayerServiceTest {
 		// Verify that the Redis cache is not rebuilt
 		verify(leaderboardCache, never()).rebuild(anyList());
 	}
+
+	@Test
+	@Timeout(45)
+	void getLeaderboard_concurrentCacheMiss_shouldRebuildOnlyOnce() throws Exception {
+
+		// Arrange: Prepare test data
+		int threadCount = 10;
+
+		List<Player> expectedPlayers = List.of(new Player(3, "PlayerThree", 2600));
+
+		PlayerEntity entity = new PlayerEntity(3, "PlayerThree", 2600);
+
+		// Simulate shared Redis cache state
+		AtomicBoolean cacheReady = new AtomicBoolean(false);
+
+		// Coordinate concurrent requests
+		CountDownLatch startLatch = new CountDownLatch(1);
+		CountDownLatch allThreadsSawMiss = new CountDownLatch(threadCount);
+		CountDownLatch databaseQueryStarted = new CountDownLatch(1);
+		CountDownLatch releaseDatabaseQuery = new CountDownLatch(1);
+
+		// Track unique threads that observed a cache miss
+		Set<Thread> cacheMissThreads = ConcurrentHashMap.newKeySet();
+
+		// Mock Redis readiness checks
+		when(leaderboardCache.isReady()).thenAnswer(invocation -> {
+
+			boolean ready = cacheReady.get();
+
+			if (!ready && cacheMissThreads.add(Thread.currentThread())) {
+				allThreadsSawMiss.countDown();
+			}
+
+			return ready;
+		});
+
+		// Block the first PostgreSQL query until all threads see a miss
+		when(repository.findAllByOrderByScoreDescIdAsc()).thenAnswer(invocation -> {
+
+			databaseQueryStarted.countDown();
+
+			if (!releaseDatabaseQuery.await(20, TimeUnit.SECONDS)) {
+				throw new AssertionError("Timed out waiting to release database query");
+			}
+
+			return List.of(entity);
+		});
+
+		// Simulate successful Redis cache rebuild
+		doAnswer(invocation -> {
+			cacheReady.set(true);
+			return null;
+		}).when(leaderboardCache).rebuild(anyList());
+
+		// Return cached leaderboard after rebuilding
+		when(leaderboardCache.getLeaderboard()).thenReturn(expectedPlayers);
+
+		ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+
+		List<Future<List<Player>>> futures = new ArrayList<>();
+
+		try {
+
+			// Submit concurrent leaderboard requests
+			for (int i = 0; i < threadCount; i++) {
+				futures.add(executor.submit(() -> {
+					startLatch.await();
+					return service.getLeaderboard();
+				}));
+			}
+
+			// Release all worker threads
+			startLatch.countDown();
+
+			// Ensure the first database query is blocked
+			assertTrue(databaseQueryStarted.await(20, TimeUnit.SECONDS), "The database query should start");
+
+			// Ensure all threads observe a cache miss
+			assertTrue(allThreadsSawMiss.await(20, TimeUnit.SECONDS), "All threads should observe a cache miss");
+
+			// Allow the database query to complete
+			releaseDatabaseQuery.countDown();
+
+			// Assert: All threads receive identical leaderboard data
+			for (Future<List<Player>> future : futures) {
+				assertEquals(expectedPlayers, future.get(20, TimeUnit.SECONDS));
+			}
+
+			// Verify PostgreSQL is queried exactly once
+			verify(repository, times(1)).findAllByOrderByScoreDescIdAsc();
+
+			// Verify Redis cache is rebuilt exactly once
+			verify(leaderboardCache, times(1)).rebuild(expectedPlayers);
+
+		} finally {
+
+			// Prevent blocked worker threads from being left behind
+			releaseDatabaseQuery.countDown();
+			startLatch.countDown();
+
+			executor.shutdownNow();
+			assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS), "Worker threads should terminate");
+		}
+	}
+
 }

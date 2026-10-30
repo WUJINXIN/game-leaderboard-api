@@ -60,6 +60,7 @@ jobs:
           DB_PASSWORD: ci_test_password
           SPRING_DATA_REDIS_HOST: localhost
           SPRING_DATA_REDIS_PORT: "6379"
+          EXPECTED_TEST_DATABASE: game_leaderboard
         run: ./mvnw test
 
       - name: Run SpotBugs static analysis

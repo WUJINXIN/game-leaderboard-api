@@ -7,6 +7,7 @@ import java.util.List;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.context.ActiveProfiles;
@@ -21,6 +22,9 @@ class PlayerRepositoryIntegrationTest {
 
 	@Autowired
 	private EntityManager entityManager;
+
+	@Value("${app.expected-test-database}")
+	private String expectedDatabase;
 
 	@Test
 	void saveAndFindPlayer() {
@@ -63,10 +67,9 @@ class PlayerRepositoryIntegrationTest {
 
 	@Test
 	void shouldUseConfiguredDatabase() {
-		String databaseName = (String) entityManager.createNativeQuery("SELECT current_database()").getSingleResult();
 
-		String expectedDatabase = System.getenv("DB_URL") == null ? "game_leaderboard_flyway_test" : "game_leaderboard";
+		String actualDatabase = (String) entityManager.createNativeQuery("SELECT current_database()").getSingleResult();
 
-		assertEquals(expectedDatabase, databaseName);
+		assertEquals(expectedDatabase, actualDatabase);
 	}
 }

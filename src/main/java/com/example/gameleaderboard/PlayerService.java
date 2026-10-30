@@ -21,6 +21,8 @@ public class PlayerService {
 	private final PlayerRepository playerRepository;
 	private final RedisLeaderboardCache leaderboardCache;
 	private static final Logger log = LoggerFactory.getLogger(PlayerService.class);
+	// Local lock to prevent concurrent leaderboard cache rebuilds
+	private final Object leaderboardRebuildLock = new Object();
 
 	@SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "Spring-managed dependency injected through constructor")
 	public PlayerService(PlayerRepository playerRepository, RedisLeaderboardCache leaderboardCache) {
@@ -37,28 +39,44 @@ public class PlayerService {
 	@Transactional(readOnly = true)
 	public List<Player> getLeaderboard() {
 
-		// 1. Try Redis cache
+		// First cache check: Fast path for cache hits
 		try {
 			if (leaderboardCache.isReady()) {
+				log.debug("Leaderboard cache hit");
 				return leaderboardCache.getLeaderboard();
 			}
 		} catch (Exception e) {
-			// Redis unavailable or cached data invalid
-			System.err.println("Redis cache read failed: " + e.getMessage());
+			log.warn("Redis cache read failed", e);
 		}
 
-		// 2. Cache Miss: query PostgreSQL
-		List<Player> players = playerRepository.findAllByOrderByScoreDescIdAsc().stream().map(this::toPlayer).toList();
+		log.debug("Leaderboard cache miss");
 
-		// 3. Rebuild Redis cache
-		try {
-			leaderboardCache.rebuild(players);
-		} catch (Exception e) {
-			// Redis failure must not break the leaderboard API
-			System.err.println("Redis cache rebuild failed: " + e.getMessage());
+		synchronized (leaderboardRebuildLock) {
+			// Only one thread can execute this block at a time
+			// Second cache check: Another thread may have rebuilt the cache
+			try {
+				if (leaderboardCache.isReady()) {
+					log.debug("Leaderboard cache hit after acquiring lock");
+					return leaderboardCache.getLeaderboard();
+				}
+			} catch (Exception e) {
+				log.warn("Redis cache recheck failed", e);
+			}
+
+			// Load leaderboard from PostgreSQL
+			List<Player> players = playerRepository.findAllByOrderByScoreDescIdAsc().stream().map(this::toPlayer)
+					.toList();
+
+			// Rebuild Redis cache
+			try {
+				leaderboardCache.rebuild(players);
+				log.debug("Leaderboard cache rebuilt successfully");
+			} catch (Exception e) {
+				log.warn("Redis cache rebuild failed", e);
+			}
+
+			return players;
 		}
-
-		return players;
 	}
 
 	@Transactional(readOnly = true)
