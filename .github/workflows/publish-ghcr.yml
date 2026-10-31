@@ -128,7 +128,7 @@ jobs:
 
       - name: Package application
         run: ./mvnw -B clean package -DskipTests
-		
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
 
