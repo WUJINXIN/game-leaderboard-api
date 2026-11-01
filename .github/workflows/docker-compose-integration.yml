@@ -29,6 +29,15 @@ jobs:
       - name: Build Docker image
         run: docker build -t game-leaderboard-api:1.0 .
 
+      - name: Validate CI environment
+        shell: bash
+        run: |
+          if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
+            echo "::error::CI_POSTGRES_PASSWORD is missing"
+            exit 1
+          fi
+          echo "CI environment is configured"
+
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
