@@ -1,0 +1,47 @@
+
+name: CI CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  yaml-lint:
+    name: YAML Lint
+    uses: ./.github/workflows/yaml-lint.yml
+    permissions:
+      contents: read
+
+  java-ci:
+    name: Java CI
+    uses: ./.github/workflows/maven-test.yml
+    permissions:
+      contents: read
+
+  compose-test:
+    name: Docker Compose Integration Test
+    uses: ./.github/workflows/docker-compose-integration.yml
+    permissions:
+      contents: read
+
+  publish:
+    name: Publish Docker Image to GHCR
+    needs:
+      - yaml-lint
+      - java-ci
+      - compose-test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/publish-ghcr.yml
+    permissions:
+      contents: read
+      packages: write
