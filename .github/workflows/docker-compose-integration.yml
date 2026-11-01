@@ -3,6 +3,9 @@ name: Docker Compose Integration Test
 
 on:
   workflow_call:
+    secrets:
+      CI_POSTGRES_PASSWORD:
+        required: true
 
 jobs:
   compose-integration:
