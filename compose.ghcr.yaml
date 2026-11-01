@@ -1,0 +1,6 @@
+services:
+  app:
+    image: ghcr.io/wujinxin/game-leaderboard-api:sha-2b8431a
+    pull_policy: always
+    ports: !override
+      - "127.0.0.1:8083:8080"

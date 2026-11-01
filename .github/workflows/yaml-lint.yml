@@ -1,0 +1,40 @@
+name: YAML Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  yaml-lint:
+    name: Validate YAML configurations
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Check GitHub Actions workflows
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color
+
+      - name: Check Docker Compose configuration
+        env:
+          POSTGRES_PASSWORD: ci_yaml_validation_only
+        run: |
+          docker compose \
+            -f compose.yaml \
+            config --quiet
+
+          docker compose \
+            -f compose.yaml \
+            -f compose.ghcr.yaml \
+            config --quiet
+
+          echo "All Docker Compose YAML files are valid"

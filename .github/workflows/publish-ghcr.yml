@@ -42,6 +42,7 @@ jobs:
           set -euo pipefail
 
           for i in $(seq 1 30); do
+            echo "Checking Spring Boot API (attempt $i/30)"
             if curl -fsS http://localhost:8082/api/leaderboard \
               > /tmp/leaderboard.json; then
               break
