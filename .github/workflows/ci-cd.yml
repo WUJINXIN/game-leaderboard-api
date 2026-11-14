@@ -46,3 +46,17 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+  publish-ecr:
+      name: Publish Docker Image to AWS ECR
+      needs:
+        - yaml-lint
+        - java-ci
+        - compose-test
+      if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      uses: ./.github/workflows/publish-ecr.yml
+      permissions:
+        contents: read
+        id-token: write
+      secrets:
+        AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
