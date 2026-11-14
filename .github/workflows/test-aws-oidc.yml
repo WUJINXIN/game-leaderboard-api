@@ -22,7 +22,8 @@ jobs:
       - name: Verify AWS Identity
         run: aws sts get-caller-identity
 
-run: |
-  aws ecr get-login-password \
-    --region ap-southeast-2 |
-    docker login --username AWS --password-stdin 700922282419.dkr.ecr.ap-southeast-2.amazonaws.com
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password \
+            --region ap-southeast-2 |
+            docker login --username AWS --password-stdin 700922282419.dkr.ecr.ap-southeast-2.amazonaws.com
