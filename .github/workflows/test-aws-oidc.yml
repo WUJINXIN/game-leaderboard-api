@@ -1,0 +1,29 @@
+name: Test AWS OIDC
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test-oidc:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-southeast-2
+          allowed-account-ids: 700922282419
+
+      - name: Verify AWS Identity
+        run: aws sts get-caller-identity
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password \
+            --region ap-southeast-2 |
+            docker login --username AWS --password-stdin 700922282419.dkr.ecr.ap-southeast-2.amazonaws.com
