@@ -1,5 +1,7 @@
 # GLSP-11 — Subscription Service 设计文档（简体中文）
 
+> **Language:** [English](GLSP-11-subscription-service-design.en.md) | 简体中文
+
 > **项目**：Game Leaderboard & Subscription Platform（GLSP）  
 > **Jira**：[GLSP-11 — Create Subscription Service and subscription lifecycle API](https://wujinxin5257.atlassian.net/browse/GLSP-11)  
 > **状态**：In Progress（截至 2026-11-23）  
